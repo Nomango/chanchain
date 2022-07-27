@@ -3,6 +3,7 @@ package chanchain
 import (
 	"context"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -18,85 +19,60 @@ func NewTickSource(interval time.Duration) Source {
 	return NewSource(t.C)
 }
 
-type Transform func(interface{}) interface{}
-
-type Chain struct {
-	v atomic.Value
-}
-
-func NewChain(ts ...Transform) *Chain {
-	var c Chain
-	c.Append(ts...)
-	return &c
-}
-
-func (c *Chain) Start(ctx context.Context, s Source) {
+// Listen receives values from Source and store it into Value
+func (s Source) Listen(ctx context.Context) *Value {
+	var v Value
 	go func() {
 		for {
 			select {
-			case v, ok := <-s:
+			case vv, ok := <-s:
 				if !ok {
 					return
 				}
-				chain := c.v.Load().(*chain)
-				_ = (*chain)(func(v interface{}) interface{} { return v })(v)
+				v.change(vv)
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
-}
-
-func (c *Chain) Append(ts ...Transform) {
-	if len(ts) == 0 {
-		return
-	}
-	var t Transform
-	if len(ts) == 1 {
-		t = ts[0]
-	} else {
-		t = func(v interface{}) interface{} {
-			for _, t := range ts {
-				v = t(v)
-			}
-			return v
-		}
-	}
-	var newc chain
-	if prev, _ := c.v.Load().(*chain); prev == nil {
-		newc = func(next Transform) Transform {
-			return func(v interface{}) interface{} {
-				return next(t(v))
-			}
-		}
-	} else {
-		newc = func(next Transform) Transform {
-			return func(v interface{}) interface{} {
-				return next((*prev)(t)(v))
-			}
-		}
-	}
-	c.v.Store(&newc)
+	return &v
 }
 
 type Value struct {
-	v atomic.Value
-}
-
-func NewValue(c *Chain) *Value {
-	var value Value
-	c.Append(func(v interface{}) interface{} {
-		value.v.Store(v)
-		return v
-	})
-	return &value
+	v  atomic.Value
+	fs []func(interface{})
+	mu sync.Mutex
 }
 
 func (v *Value) Load() interface{} {
 	return v.v.Load()
 }
 
-type chain func(Transform) Transform
+func (v *Value) change(vv interface{}) {
+	v.v.Store(vv)
+
+	v.mu.Lock()
+	fs := v.fs
+	v.mu.Unlock()
+	if len(fs) > 0 {
+		for _, f := range fs {
+			f := f
+			go f(vv)
+		}
+	}
+}
+
+type Transform func(interface{}) interface{}
+
+func Convert(v *Value, t Transform) *Value {
+	var newv Value
+	v.mu.Lock()
+	v.fs = append(v.fs, func(u interface{}) {
+		newv.change(t(u))
+	})
+	v.mu.Unlock()
+	return &newv
+}
 
 func wrapChannel(ch interface{}) <-chan interface{} {
 	t := reflect.TypeOf(ch)

@@ -53,6 +53,13 @@ func NewValueFrom[T any](vv T) Value[T] {
 	return &v
 }
 
+// SubscribeWithTransform receives values from Source and store it into Value with a Transform
+func SubscribeWithTransform[T, U any](s Source[T], v Value[U], t Transform[T, U]) {
+	s.OnChange(func(vv T) {
+		v.Store(t(vv))
+	})
+}
+
 // Transform converts T to U
 type Transform[T, U any] func(T) U
 

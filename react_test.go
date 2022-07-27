@@ -15,22 +15,25 @@ func TestReact(t *testing.T) {
 	s := react.NewSource(ch)
 
 	vInt := s.Subscribe(context.Background())
-	vInt32 := react.Convert(vInt, func(v int) int32 {
-		return int32(v)
+	vInt.OnChange(func(i int) {
+		fmt.Println(i)
 	})
+
+	var vInt32 react.Value[int32]
+	react.Bind(vInt, &vInt32, func(v int) int32 {
+		return int32(v + 1)
+	})
+
 	vStr := react.Convert(vInt, func(v int) string {
-		return fmt.Sprint(v)
-	})
-	vStr.OnChange(func(s string) {
-		fmt.Println(s)
+		return fmt.Sprint(v + 2)
 	})
 
 	ch <- 1
 	time.Sleep(time.Millisecond * 10)
 
 	AssertEqual(t, 1, vInt.Load())
-	AssertEqual(t, 1, vInt32.Load())
-	AssertEqual(t, "1", vStr.Load())
+	AssertEqual(t, 2, vInt32.Load())
+	AssertEqual(t, "3", vStr.Load())
 }
 
 func AssertEqual[T any](t *testing.T, expect, actual T) {

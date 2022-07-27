@@ -22,14 +22,15 @@ vInt.OnChange(func(i int) {
     fmt.Println(i)
 })
 
-// Convert a int Value to a int32 Value
-vInt32 := react.Convert(vInt, func(v int) int32 {
-    return int32(v)
+// Bind another Value
+var vInt32 react.Value[int32]
+react.Bind(vInt, &vInt32, func(v int) int32 {
+    return int32(v + 1)
 })
 
 // Convert a int Value to a string Value
 vStr := react.Convert(vInt, func(v int) string {
-    return fmt.Sprint(v)
+    return fmt.Sprint(v+2)
 })
 
 // Send a value to Source
@@ -40,6 +41,6 @@ fmt.Println(vStr.Load())
 
 // Output:
 // 1
-// 1
-// 1
+// 2
+// 3
 ```

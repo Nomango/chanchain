@@ -81,10 +81,14 @@ func (v *Value[T]) change(vv T) {
 
 type Transform[T, U any] func(T) U
 
+func Bind[T, U any](from *Value[T], to *Value[U], t Transform[T, U]) {
+	from.OnChange(func(vv T) {
+		to.change(t(vv))
+	})
+}
+
 func Convert[T, U any](v *Value[U], t Transform[U, T]) *Value[T] {
 	var newv Value[T]
-	v.OnChange(func(u U) {
-		newv.change(t(u))
-	})
+	Bind(v, &newv, t)
 	return &newv
 }

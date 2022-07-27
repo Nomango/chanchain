@@ -18,14 +18,19 @@ type Source[T any] interface {
 }
 
 // NewSource ...
-func NewSource[T any](ch <-chan T) Source[T] {
+func NewSource[T any]() Source[T] {
+	return &source[T]{}
+}
+
+// NewChanSource ...
+func NewChanSource[T any](ch <-chan T) Source[T] {
 	return &channelSource[T]{ch: ch}
 }
 
 // NewTickSource creates a Source that will send the current time after each tick
 func NewTickSource(interval time.Duration) Source[time.Time] {
 	t := time.NewTicker(interval)
-	return NewSource(t.C)
+	return NewChanSource(t.C)
 }
 
 // Value ...

@@ -11,7 +11,7 @@ import (
 
 func TestReact(t *testing.T) {
 	ch := make(chan int)
-	s := react.NewSource(ch)
+	s := react.NewChanSource(ch)
 
 	vInt := react.NewValue[int]()
 	vInt.Subscribe(s)

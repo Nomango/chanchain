@@ -13,7 +13,8 @@ type Source[T any] interface {
 	// OnChange registers a handler that handles value changes
 	OnChange(f func(T))
 
-	change(v T)
+	// Change updates the Source
+	Change(v T)
 }
 
 // NewSource ...
@@ -29,13 +30,14 @@ func NewTickSource(interval time.Duration) Source[time.Time] {
 
 // Value ...
 type Value[T any] interface {
-	Source[T]
-
 	// Load ...
 	Load() T
 
 	// Store ...
 	Store(v T)
+
+	// OnChange registers a handler that handles value changes
+	OnChange(f func(T))
 
 	// Subscribe receives values from Source and store it into Value
 	Subscribe(s Source[T])
@@ -88,7 +90,7 @@ func (s *source[T]) OnChange(f func(T)) {
 	s.mu.Unlock()
 }
 
-func (s *source[T]) change(vv T) {
+func (s *source[T]) Change(vv T) {
 	s.mu.Lock()
 	subs := s.subs
 	s.mu.Unlock()
@@ -123,7 +125,7 @@ func (s *channelSource[T]) start() {
 					if !ok {
 						return
 					}
-					s.change(vv)
+					s.Change(vv)
 				case <-ctx.Done():
 					return
 				}
@@ -144,7 +146,7 @@ func (v *value[T]) Load() T {
 
 func (v *value[T]) Store(vv T) {
 	v.v.Store(vv)
-	v.change(vv)
+	v.Change(vv)
 }
 
 func (v *value[T]) Subscribe(s Source[T]) {

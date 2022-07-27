@@ -14,7 +14,8 @@ type Source interface {
 	// OnChange registers a handler that handles value changes
 	OnChange(f func(interface{}))
 
-	change(v interface{})
+	// Change updates the Source
+	Change(v interface{})
 }
 
 // NewSource ...
@@ -30,13 +31,14 @@ func NewTickSource(interval time.Duration) Source {
 
 // Value ...
 type Value interface {
-	Source
-
 	// Load ...
 	Load() interface{}
 
 	// Store ...
 	Store(v interface{})
+
+	// OnChange registers a handler that handles value changes
+	OnChange(f func(interface{}))
 
 	// Bind binds two value with a transform
 	Bind(from Value, t Transform)
@@ -81,7 +83,7 @@ func (s *source) OnChange(f func(interface{})) {
 	s.mu.Unlock()
 }
 
-func (s *source) change(vv interface{}) {
+func (s *source) Change(vv interface{}) {
 	s.mu.Lock()
 	subs := s.subs
 	s.mu.Unlock()
@@ -116,7 +118,7 @@ func (s *channelSource) start() {
 					if !ok {
 						return
 					}
-					s.change(vv)
+					s.Change(vv)
 				case <-ctx.Done():
 					return
 				}
@@ -136,7 +138,7 @@ func (v *value) Load() interface{} {
 
 func (v *value) Store(vv interface{}) {
 	v.v.Store(vv)
-	v.change(vv)
+	v.Change(vv)
 }
 
 func (v *value) Bind(from Value, t Transform) {

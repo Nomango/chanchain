@@ -1,7 +1,6 @@
 package react_test
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -14,10 +13,14 @@ func TestReact(t *testing.T) {
 	ch := make(chan int)
 	s := react.NewSource(ch)
 
-	vInt := s.Subscribe(context.Background())
+	vInt := react.NewValue(0)
+	vInt.Subscribe(s)
 	vInt.OnChange(func(i int) {
 		fmt.Println(i)
 	})
+
+	vInt2 := react.NewValue(0)
+	vInt2.Subscribe(s)
 
 	var vInt32 react.Value[int32]
 	react.Bind(vInt, &vInt32, func(v int) int32 {
@@ -32,6 +35,7 @@ func TestReact(t *testing.T) {
 	time.Sleep(time.Millisecond * 10)
 
 	AssertEqual(t, 1, vInt.Load())
+	AssertEqual(t, 1, vInt2.Load())
 	AssertEqual(t, 2, vInt32.Load())
 	AssertEqual(t, "3", vStr.Load())
 }

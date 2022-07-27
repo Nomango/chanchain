@@ -11,31 +11,26 @@ import (
 )
 
 func TestChain(t *testing.T) {
-	c := chanchain.NewChain(func(v interface{}) interface{} {
-		return fmt.Sprint(v) + "1"
-	}, func(v interface{}) interface{} {
-		return fmt.Sprint(v) + "2"
-	})
-
-	c.Append(func(v interface{}) interface{} {
-		return fmt.Sprint(v) + "3"
-	}, func(v interface{}) interface{} {
-		return fmt.Sprint(v) + "4"
-	})
-
 	ch := make(chan int)
 	s := chanchain.NewSource(ch)
-	c.Start(context.Background(), s)
 
-	v := chanchain.NewValue(c)
+	vInt := s.Listen(context.Background())
+	vInt32 := chanchain.Convert(vInt, func(v int) int32 {
+		return int32(v)
+	})
+	vStr := chanchain.Convert(vInt, func(v int) string {
+		return fmt.Sprint(v)
+	})
 
-	ch <- 0
+	ch <- 1
 	time.Sleep(time.Millisecond * 10)
 
-	AssertEqual(t, "01234", v.Load())
+	AssertEqual(t, 1, vInt.Load())
+	AssertEqual(t, 1, vInt32.Load())
+	AssertEqual(t, "1", vStr.Load())
 }
 
-func AssertEqual(t *testing.T, expect, actual interface{}) {
+func AssertEqual[T any](t *testing.T, expect, actual T) {
 	if !reflect.DeepEqual(expect, actual) {
 		t.Fatalf("values are not equal\nexpected=%v\ngot=%v", expect, actual)
 	}

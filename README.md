@@ -1,35 +1,37 @@
 # chanchain
 
+chanchain for Golang1.18+
+
 ## Usage
 
 ```golang
 ch := make(chan int)
 
-// Create a Chain
-c := chanchain.NewChain(func(v interface{}) interface{} {
-    return fmt.Sprint(v) + "1"
+// Create a source
+s := chanchain.NewSource(ch)
+
+// Listen the source and get a value returned
+vInt := s.Listen(context.Background())
+
+// Convert a int Value to a int32 Value
+vInt32 := chanchain.Convert(vInt, func(v int) int32 {
+    return int32(v)
 })
-c.Append(func(v interface{}) interface{} {
-    return fmt.Sprint(v) + "2"
+
+// Convert a int Value to a string Value
+vStr := chanchain.Convert(vInt, func(v int) string {
+    return fmt.Sprint(v)
 })
 
-// Start a chain with a source
-c.Start(ctx, chanchain.NewSource(ch))
+// Send a value to Source
+ch <- 1
 
-// Create a Value
-v := chanchain.NewValue(c)
-
-// Default value of a Value is nil
-fmt.Println(v.Load())
-
-// Input
-ch <- 0
-time.Sleep(time.Second)
-
-// Get latest value
-fmt.Println(v.Load())
+fmt.Println(vInt.Load())
+fmt.Println(vInt32.Load())
+fmt.Println(vStr.Load())
 
 // Output:
-// nil
-// 012
+// 1
+// 1
+// 1
 ```

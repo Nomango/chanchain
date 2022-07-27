@@ -1,3 +1,3 @@
 module github.com/Nomango/chanchain
 
-go 1.14
+go 1.18

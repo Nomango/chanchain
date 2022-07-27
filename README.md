@@ -1,8 +1,10 @@
-# chanchain
+# go-react
 
-chanchain for Golang1.17-.
+Not React.js for Golang!
 
-[See here for Golang1.18+](https://github.com/Nomango/chanchain).
+`go-react` is a library for data binding.
+
+[See here for Golang1.18+](https://github.com/Nomango/go-react).
 
 ## Usage
 
@@ -10,10 +12,10 @@ chanchain for Golang1.17-.
 ch := make(chan int)
 
 // Create a source
-s := chanchain.NewSource(ch)
+s := react.NewSource(ch)
 
-// Listen the source and get a value returned
-vInt := s.Listen(context.Background())
+// Subscribe the source and get a value returned
+vInt := s.Subscribe(context.Background())
 
 // Set action on change
 vInt.OnChange(func(v interface{}) {
@@ -21,12 +23,12 @@ vInt.OnChange(func(v interface{}) {
 })
 
 // Convert a int Value to a int32 Value
-vInt32 := chanchain.Convert(vInt, func(v interface{}) interface{} {
+vInt32 := react.Convert(vInt, func(v interface{}) interface{} {
     return int32(v.(int))
 })
 
 // Convert a int Value to a string Value
-vStr := chanchain.Convert(vInt, func(v interface{}) interface{} {
+vStr := react.Convert(vInt, func(v interface{}) interface{} {
     return fmt.Sprint(v)
 })
 

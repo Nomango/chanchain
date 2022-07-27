@@ -38,9 +38,9 @@ func (s Source[T]) Listen(ctx context.Context) *Value[T] {
 }
 
 type Value[T any] struct {
-	v  atomic.Value
-	fs []func(T)
-	mu sync.Mutex
+	v        atomic.Value
+	mu       sync.Mutex
+	onChange []func(T)
 }
 
 func (v *Value[T]) Load() T {
@@ -48,14 +48,20 @@ func (v *Value[T]) Load() T {
 	return r
 }
 
+func (v *Value[T]) OnChange(f func(T)) {
+	v.mu.Lock()
+	v.onChange = append(v.onChange, f)
+	v.mu.Unlock()
+}
+
 func (v *Value[T]) change(vv T) {
 	v.v.Store(vv)
 
 	v.mu.Lock()
-	fs := v.fs
+	onChange := v.onChange
 	v.mu.Unlock()
-	if len(fs) > 0 {
-		for _, f := range fs {
+	if len(onChange) > 0 {
+		for _, f := range onChange {
 			f := f
 			go f(vv)
 		}
@@ -66,10 +72,8 @@ type Transform[T, U any] func(T) U
 
 func Convert[T, U any](v *Value[U], t Transform[U, T]) *Value[T] {
 	var newv Value[T]
-	v.mu.Lock()
-	v.fs = append(v.fs, func(u U) {
+	v.OnChange(func(u U) {
 		newv.change(t(u))
 	})
-	v.mu.Unlock()
 	return &newv
 }

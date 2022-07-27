@@ -21,6 +21,9 @@ func TestChain(t *testing.T) {
 	vStr := chanchain.Convert(vInt, func(v int) string {
 		return fmt.Sprint(v)
 	})
+	vStr.OnChange(func(s string) {
+		fmt.Println(s)
+	})
 
 	ch <- 1
 	time.Sleep(time.Millisecond * 10)

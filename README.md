@@ -12,7 +12,7 @@ Not React.js for Golang!
 ch := make(chan int)
 
 // Create a source
-s := react.NewSource(ch)
+s := react.NewChanSource(ch)
 
 // Create a value and subscribe the source
 vInt := react.NewValue()

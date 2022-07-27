@@ -10,7 +10,7 @@ import (
 	"github.com/Nomango/react"
 )
 
-func TestChain(t *testing.T) {
+func TestReact(t *testing.T) {
 	ch := make(chan int)
 	s := react.NewSource(ch)
 

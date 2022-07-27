@@ -18,19 +18,22 @@ func TestReact(t *testing.T) {
 	vInt.OnChange(func(i interface{}) {
 		fmt.Println(i)
 	})
-	vInt32 := react.Convert(vInt, func(v interface{}) interface{} {
-		return int32(v.(int))
+
+	var vInt32 react.Value
+	react.Bind(vInt, &vInt32, func(v interface{}) interface{} {
+		return int32(v.(int)) + 1
 	})
+
 	vStr := react.Convert(vInt, func(v interface{}) interface{} {
-		return fmt.Sprint(v)
+		return fmt.Sprint(v.(int) + 2)
 	})
 
 	ch <- 1
 	time.Sleep(time.Millisecond * 10)
 
 	AssertEqual(t, 1, vInt.Load())
-	AssertEqual(t, int32(1), vInt32.Load())
-	AssertEqual(t, "1", vStr.Load())
+	AssertEqual(t, int32(2), vInt32.Load())
+	AssertEqual(t, "3", vStr.Load())
 }
 
 func AssertEqual(t *testing.T, expect, actual interface{}) {

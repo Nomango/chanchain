@@ -64,6 +64,12 @@ func (v *Value) OnChange(f func(interface{})) {
 	v.mu.Unlock()
 }
 
+func (v *Value) Bind(other *Value, t Transform) {
+	other.OnChange(func(u interface{}) {
+		v.change(t(u))
+	})
+}
+
 func (v *Value) change(vv interface{}) {
 	v.v.Store(vv)
 
@@ -83,10 +89,12 @@ type Transform func(interface{}) interface{}
 
 func Convert(v *Value, t Transform) *Value {
 	var newv Value
-	v.OnChange(func(u interface{}) {
-		newv.change(t(u))
-	})
+	newv.Bind(v, t)
 	return &newv
+}
+
+func Bind(from *Value, to *Value, t Transform) {
+	to.Bind(from, t)
 }
 
 func wrapChannel(ch interface{}) <-chan interface{} {

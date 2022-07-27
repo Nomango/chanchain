@@ -15,6 +15,11 @@ s := chanchain.NewSource(ch)
 // Listen the source and get a value returned
 vInt := s.Listen(context.Background())
 
+// Set action on change
+vInt.OnChange(func(v interface{}) {
+    fmt.Println(v)
+})
+
 // Convert a int Value to a int32 Value
 vInt32 := chanchain.Convert(vInt, func(v interface{}) interface{} {
     return int32(v.(int))

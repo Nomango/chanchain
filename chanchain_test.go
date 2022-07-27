@@ -15,6 +15,9 @@ func TestChain(t *testing.T) {
 	s := chanchain.NewSource(ch)
 
 	vInt := s.Listen(context.Background())
+	vInt.OnChange(func(i interface{}) {
+		fmt.Println(i)
+	})
 	vInt32 := chanchain.Convert(vInt, func(v interface{}) interface{} {
 		return int32(v.(int))
 	})

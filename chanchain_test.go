@@ -1,4 +1,4 @@
-package chanchain_test
+package react_test
 
 import (
 	"context"
@@ -7,18 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Nomango/chanchain"
+	"github.com/Nomango/react"
 )
 
 func TestChain(t *testing.T) {
 	ch := make(chan int)
-	s := chanchain.NewSource(ch)
+	s := react.NewSource(ch)
 
-	vInt := s.Listen(context.Background())
-	vInt32 := chanchain.Convert(vInt, func(v int) int32 {
+	vInt := s.Subscribe(context.Background())
+	vInt32 := react.Convert(vInt, func(v int) int32 {
 		return int32(v)
 	})
-	vStr := chanchain.Convert(vInt, func(v int) string {
+	vStr := react.Convert(vInt, func(v int) string {
 		return fmt.Sprint(v)
 	})
 	vStr.OnChange(func(s string) {

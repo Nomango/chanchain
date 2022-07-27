@@ -1,4 +1,4 @@
-package chanchain
+package react
 
 import (
 	"context"
@@ -18,8 +18,8 @@ func NewTickSource(interval time.Duration) Source[time.Time] {
 	return NewSource(t.C)
 }
 
-// Listen receives values from Source and store it into Value
-func (s Source[T]) Listen(ctx context.Context) *Value[T] {
+// Subscribe receives values from Source and store it into Value
+func (s Source[T]) Subscribe(ctx context.Context) *Value[T] {
 	var v Value[T]
 	go func() {
 		for {
@@ -43,9 +43,19 @@ type Value[T any] struct {
 	onChange []func(T)
 }
 
+func NewValue[T any](vv interface{}) *Value[T] {
+	var v Value[T]
+	v.v.Store(vv)
+	return &v
+}
+
 func (v *Value[T]) Load() T {
 	r, _ := v.v.Load().(T)
 	return r
+}
+
+func (v *Value[T]) Store(vv T) {
+	v.change(vv)
 }
 
 func (v *Value[T]) OnChange(f func(T)) {
@@ -61,10 +71,11 @@ func (v *Value[T]) change(vv T) {
 	onChange := v.onChange
 	v.mu.Unlock()
 	if len(onChange) > 0 {
-		for _, f := range onChange {
-			f := f
-			go f(vv)
-		}
+		go func() {
+			for _, f := range onChange {
+				f(vv)
+			}
+		}()
 	}
 }
 

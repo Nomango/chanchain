@@ -30,7 +30,7 @@ vInt.OnChange(func(i int) {
 
 // Bind another value
 vInt32 := react.NewValue[int32]()
-react.Bind(vInt, &vInt32, func(v int) int32 {
+react.Bind(vInt, vInt32, func(v int) int32 {
     return int32(v + 1)
 })
 

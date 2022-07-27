@@ -38,8 +38,14 @@ type Value interface {
 	// Store ...
 	Store(v interface{})
 
+	// Bind binds two value with a transform
+	Bind(from Value, t Transform)
+
 	// Subscribe receives values from Source and store it into Value
 	Subscribe(s Source)
+
+	// SubscribeWithTransform receives values from Source and store it into Value with a Transform
+	SubscribeWithTransform(s Source, t Transform)
 }
 
 // NewValue ...
@@ -57,17 +63,10 @@ func NewValueFrom(vv interface{}) Value {
 // Transform converts interface{} to interface{}
 type Transform func(interface{}) interface{}
 
-// Bind binds two value with a transform
-func Bind(from Value, to Value, t Transform) {
-	from.OnChange(func(vv interface{}) {
-		to.Store(t(vv))
-	})
-}
-
 // Convert converts Value type
 func Convert(v Value, t Transform) Value {
 	var newv value
-	Bind(v, &newv, t)
+	newv.Bind(v, t)
 	return &newv
 }
 
@@ -140,9 +139,21 @@ func (v *value) Store(vv interface{}) {
 	v.change(vv)
 }
 
+func (v *value) Bind(from Value, t Transform) {
+	from.OnChange(func(vv interface{}) {
+		v.Store(t(vv))
+	})
+}
+
 func (v *value) Subscribe(s Source) {
 	s.OnChange(func(vv interface{}) {
 		v.Store(vv)
+	})
+}
+
+func (v *value) SubscribeWithTransform(s Source, t Transform) {
+	s.OnChange(func(vv interface{}) {
+		v.Store(t(vv))
 	})
 }
 

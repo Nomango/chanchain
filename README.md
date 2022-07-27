@@ -42,6 +42,9 @@ vStr := react.Convert(vInt, func(v interface{}) interface{} {
 // Send a value to Source
 ch <- 1
 
+// Wait for the update to complete
+time.Sleep(time.Millisecond * 10)
+
 fmt.Println(vInt32.Load())
 fmt.Println(vStr.Load())
 

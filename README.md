@@ -35,7 +35,6 @@ vStr := react.Convert(vInt, func(v interface{}) interface{} {
 // Send a value to Source
 ch <- 1
 
-fmt.Println(vInt.Load())
 fmt.Println(vInt32.Load())
 fmt.Println(vStr.Load())
 

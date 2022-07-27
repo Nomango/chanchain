@@ -14,21 +14,27 @@ ch := make(chan int)
 // Create a source
 s := react.NewSource(ch)
 
-// Subscribe the source and get a value returned
-vInt := s.Subscribe(context.Background())
+// Create a value and subscribe the source
+vInt := react.NewValue(0)
+vInt.Subscribe(s)
+
+// A source can be subscribed more than one time
+// So the following code is valid
+vInt2 := react.NewValue(0)
+vInt2.Subscribe(s)
 
 // Set action on change
-vInt.OnChange(func(v interface{}) {
-    fmt.Println(v)
+vInt.OnChange(func(i interface{}) {
+    fmt.Println(i)
 })
 
-// Bind another Value
+// Bind another value
 var vInt32 react.Value
 vInt32.Bind(vInt, func(v interface{}) interface{} {
-    return int32(v.(int)) + 1
+    return int32(v.(int) + 1)
 })
 
-// Convert a int Value to a string Value
+// Convert a int value to a string value
 vStr := react.Convert(vInt, func(v interface{}) interface{} {
     return fmt.Sprint(v.(int) + 2)
 })

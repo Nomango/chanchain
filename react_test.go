@@ -13,17 +13,17 @@ func TestReact(t *testing.T) {
 	ch := make(chan int)
 	s := react.NewSource(ch)
 
-	vInt := react.NewValue(0)
+	vInt := react.NewValue()
 	vInt.Subscribe(s)
 	vInt.OnChange(func(i interface{}) {
 		fmt.Println(i)
 	})
 
-	vInt2 := react.NewValue(0)
+	vInt2 := react.NewValueFrom(0)
 	vInt2.Subscribe(s)
 
-	var vInt32 react.Value
-	react.Bind(vInt, &vInt32, func(v interface{}) interface{} {
+	vInt32 := react.NewValue()
+	react.Bind(vInt, vInt32, func(v interface{}) interface{} {
 		return int32(v.(int) + 1)
 	})
 

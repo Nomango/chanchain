@@ -15,12 +15,12 @@ ch := make(chan int)
 s := react.NewSource(ch)
 
 // Create a value and subscribe the source
-vInt := react.NewValue(0)
+vInt := react.NewValue()
 vInt.Subscribe(s)
 
 // A source can be subscribed more than one time
 // So the following code is valid
-vInt2 := react.NewValue(0)
+vInt2 := react.NewValueFrom(0)
 vInt2.Subscribe(s)
 
 // Set action on change
@@ -29,7 +29,7 @@ vInt.OnChange(func(i interface{}) {
 })
 
 // Bind another value
-var vInt32 react.Value
+vInt32 := react.NewValue()
 vInt32.Bind(vInt, func(v interface{}) interface{} {
     return int32(v.(int) + 1)
 })

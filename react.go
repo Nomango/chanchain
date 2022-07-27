@@ -1,94 +1,25 @@
 package react
 
 import (
+	"context"
 	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// Value ...
-type Value struct {
-	v        atomic.Value
-	mu       sync.Mutex
-	onChange []func(interface{})
-}
-
-// NewValue ...
-func NewValue(vv interface{}) *Value {
-	var v Value
-	v.v.Store(vv)
-	return &v
-}
-
-// Load ...
-func (v *Value) Load() interface{} {
-	return v.v.Load()
-}
-
-// Store ...
-func (v *Value) Store(vv interface{}) {
-	v.change(vv)
-}
-
-// OnChange registers a handler that handles value changes
-func (v *Value) OnChange(f func(interface{})) {
-	v.mu.Lock()
-	v.onChange = append(v.onChange, f)
-	v.mu.Unlock()
-}
-
-// Bind binds to another value with the transform
-func (v *Value) Bind(other *Value, t Transform) {
-	other.OnChange(func(u interface{}) {
-		v.change(t(u))
-	})
-}
-
-// Subscribe receives values from Source and store it into Value
-func (v *Value) Subscribe(s Source) {
-	(*source)(s).start()
-	Bind(s.v, v, func(vv interface{}) interface{} { return vv })
-}
-
-func (v *Value) change(vv interface{}) {
-	v.v.Store(vv)
-
-	v.mu.Lock()
-	onChange := v.onChange
-	v.mu.Unlock()
-	if len(onChange) > 0 {
-		go func() {
-			for _, f := range onChange {
-				f(vv)
-			}
-		}()
-	}
-}
-
-// Transform converts T to U
-type Transform func(interface{}) interface{}
-
-// Bind binds two value with a transform
-func Bind(from *Value, to *Value, t Transform) {
-	from.OnChange(func(vv interface{}) {
-		to.change(t(vv))
-	})
-}
-
-// Convert converts Value type
-func Convert(v *Value, t Transform) *Value {
-	var newv Value
-	Bind(v, &newv, t)
-	return &newv
-}
-
 // Source ...
-type Source *source
+type Source interface {
+	// OnChange registers a handler that handles value changes
+	OnChange(f func(interface{}))
+
+	change(v interface{})
+}
 
 // NewSource ...
 func NewSource(ch interface{}) Source {
-	return &source{ch: wrapChannel(ch), v: &Value{}}
+	return &channelSource{ch: wrapChannel(ch)}
 }
 
 // NewTickSource creates a Source that will send the current time after each tick
@@ -97,23 +28,121 @@ func NewTickSource(interval time.Duration) Source {
 	return NewSource(t.C)
 }
 
-type source struct {
-	ch   <-chan interface{}
-	v    *Value
-	once sync.Once
+// Value ...
+type Value interface {
+	Source
+
+	// Load ...
+	Load() interface{}
+
+	// Store ...
+	Store(v interface{})
+
+	// Subscribe receives values from Source and store it into Value
+	Subscribe(s Source)
 }
 
-func (s *source) start() {
+// NewValue ...
+func NewValue() Value {
+	return &value{}
+}
+
+// NewValueFrom ...
+func NewValueFrom(vv interface{}) Value {
+	var v value
+	v.v.Store(vv)
+	return &v
+}
+
+// Transform converts interface{} to interface{}
+type Transform func(interface{}) interface{}
+
+// Bind binds two value with a transform
+func Bind(from Value, to Value, t Transform) {
+	from.OnChange(func(vv interface{}) {
+		to.Store(t(vv))
+	})
+}
+
+// Convert converts Value type
+func Convert(v Value, t Transform) Value {
+	var newv value
+	Bind(v, &newv, t)
+	return &newv
+}
+
+type source struct {
+	mu   sync.Mutex
+	subs []func(interface{})
+}
+
+func (s *source) OnChange(f func(interface{})) {
+	s.mu.Lock()
+	s.subs = append(s.subs, f)
+	s.mu.Unlock()
+}
+
+func (s *source) change(vv interface{}) {
+	s.mu.Lock()
+	subs := s.subs
+	s.mu.Unlock()
+	if len(subs) > 0 {
+		for _, f := range subs {
+			go f(vv)
+		}
+	}
+}
+
+type channelSource struct {
+	source
+	once sync.Once
+	ch   <-chan interface{}
+}
+
+func (s *channelSource) OnChange(f func(interface{})) {
+	s.start()
+	s.source.OnChange(f)
+}
+
+func (s *channelSource) start() {
 	s.once.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		runtime.SetFinalizer(s, func(s *channelSource) {
+			cancel()
+		})
 		go func() {
 			for {
-				vv, ok := <-s.ch
-				if !ok {
+				select {
+				case vv, ok := <-s.ch:
+					if !ok {
+						return
+					}
+					s.change(vv)
+				case <-ctx.Done():
 					return
 				}
-				s.v.change(vv)
 			}
 		}()
+	})
+}
+
+type value struct {
+	source
+	v atomic.Value
+}
+
+func (v *value) Load() interface{} {
+	return v.v.Load()
+}
+
+func (v *value) Store(vv interface{}) {
+	v.v.Store(vv)
+	v.change(vv)
+}
+
+func (v *value) Subscribe(s Source) {
+	s.OnChange(func(vv interface{}) {
+		v.Store(vv)
 	})
 }
 

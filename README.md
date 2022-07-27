@@ -15,12 +15,12 @@ ch := make(chan int)
 s := react.NewSource(ch)
 
 // Create a value and subscribe the source
-vInt := react.NewValue(0)
+vInt := react.NewValue[int]()
 vInt.Subscribe(s)
 
 // A source can be subscribed more than one time
 // So the following code is valid
-vInt2 := react.NewValue(0)
+vInt2 := react.NewValueFrom(0)
 vInt2.Subscribe(s)
 
 // Set action on change
@@ -29,7 +29,7 @@ vInt.OnChange(func(i int) {
 })
 
 // Bind another value
-var vInt32 react.Value[int32]
+vInt32 := react.NewValue[int32]()
 react.Bind(vInt, &vInt32, func(v int) int32 {
     return int32(v + 1)
 })
@@ -41,6 +41,9 @@ vStr := react.Convert(vInt, func(v int) string {
 
 // Send a value to Source
 ch <- 1
+
+// Wait for the update to complete
+time.Sleep(time.Millisecond * 10)
 
 fmt.Println(vInt32.Load())
 fmt.Println(vStr.Load())

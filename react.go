@@ -1,87 +1,24 @@
 package react
 
 import (
+	"context"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// Value ...
-type Value[T any] struct {
-	v        atomic.Value
-	mu       sync.Mutex
-	onChange []func(T)
-}
-
-// NewValue ...
-func NewValue[T any](vv T) *Value[T] {
-	var v Value[T]
-	v.v.Store(vv)
-	return &v
-}
-
-// Load ...
-func (v *Value[T]) Load() T {
-	r, _ := v.v.Load().(T)
-	return r
-}
-
-// Store ...
-func (v *Value[T]) Store(vv T) {
-	v.change(vv)
-}
-
-// OnChange registers a handler that handles value changes
-func (v *Value[T]) OnChange(f func(T)) {
-	v.mu.Lock()
-	v.onChange = append(v.onChange, f)
-	v.mu.Unlock()
-}
-
-// Subscribe receives values from Source and store it into Value
-func (v *Value[T]) Subscribe(s Source[T]) {
-	(*source[T])(s).start()
-	Bind(s.v, v, func(vv T) T { return vv })
-}
-
-func (v *Value[T]) change(vv T) {
-	v.v.Store(vv)
-
-	v.mu.Lock()
-	onChange := v.onChange
-	v.mu.Unlock()
-	if len(onChange) > 0 {
-		go func() {
-			for _, f := range onChange {
-				f(vv)
-			}
-		}()
-	}
-}
-
-// Transform converts T to U
-type Transform[T, U any] func(T) U
-
-// Bind binds two value with a transform
-func Bind[T, U any](from *Value[T], to *Value[U], t Transform[T, U]) {
-	from.OnChange(func(vv T) {
-		to.change(t(vv))
-	})
-}
-
-// Convert converts Value type
-func Convert[T, U any](v *Value[U], t Transform[U, T]) *Value[T] {
-	var newv Value[T]
-	Bind(v, &newv, t)
-	return &newv
-}
-
 // Source ...
-type Source[T any] *source[T]
+type Source[T any] interface {
+	// OnChange registers a handler that handles value changes
+	OnChange(f func(T))
+
+	change(v T)
+}
 
 // NewSource ...
 func NewSource[T any](ch <-chan T) Source[T] {
-	return &source[T]{ch: ch, v: &Value[T]{}}
+	return &channelSource[T]{ch: ch}
 }
 
 // NewTickSource creates a Source that will send the current time after each tick
@@ -90,22 +27,121 @@ func NewTickSource(interval time.Duration) Source[time.Time] {
 	return NewSource(t.C)
 }
 
-type source[T any] struct {
-	ch   <-chan T
-	v    *Value[T]
-	once sync.Once
+// Value ...
+type Value[T any] interface {
+	Source[T]
+
+	// Load ...
+	Load() T
+
+	// Store ...
+	Store(v T)
+
+	// Subscribe receives values from Source and store it into Value
+	Subscribe(s Source[T])
 }
 
-func (s *source[T]) start() {
+// NewValue ...
+func NewValue[T any]() Value[T] {
+	return &value[T]{}
+}
+
+// NewValueFrom ...
+func NewValueFrom[T any](vv T) Value[T] {
+	var v value[T]
+	v.v.Store(vv)
+	return &v
+}
+
+// Transform converts T to U
+type Transform[T, U any] func(T) U
+
+// Bind binds two value with a transform
+func Bind[T, U any](from Value[T], to Value[U], t Transform[T, U]) {
+	from.OnChange(func(vv T) {
+		to.Store(t(vv))
+	})
+}
+
+// Convert converts Value type
+func Convert[T, U any](v Value[T], t Transform[T, U]) Value[U] {
+	var newv value[U]
+	Bind[T, U](v, &newv, t)
+	return &newv
+}
+
+type source[T any] struct {
+	mu   sync.Mutex
+	subs []func(T)
+}
+
+func (s *source[T]) OnChange(f func(T)) {
+	s.mu.Lock()
+	s.subs = append(s.subs, f)
+	s.mu.Unlock()
+}
+
+func (s *source[T]) change(vv T) {
+	s.mu.Lock()
+	subs := s.subs
+	s.mu.Unlock()
+	if len(subs) > 0 {
+		for _, f := range subs {
+			go f(vv)
+		}
+	}
+}
+
+type channelSource[T any] struct {
+	source[T]
+	once sync.Once
+	ch   <-chan T
+}
+
+func (s *channelSource[T]) OnChange(f func(T)) {
+	s.start()
+	s.source.OnChange(f)
+}
+
+func (s *channelSource[T]) start() {
 	s.once.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		runtime.SetFinalizer(s, func(s *channelSource[T]) {
+			cancel()
+		})
 		go func() {
 			for {
-				vv, ok := <-s.ch
-				if !ok {
+				select {
+				case vv, ok := <-s.ch:
+					if !ok {
+						return
+					}
+					s.change(vv)
+				case <-ctx.Done():
 					return
 				}
-				s.v.change(vv)
 			}
 		}()
+	})
+}
+
+type value[T any] struct {
+	source[T]
+	v atomic.Value
+}
+
+func (v *value[T]) Load() T {
+	r, _ := v.v.Load().(T)
+	return r
+}
+
+func (v *value[T]) Store(vv T) {
+	v.v.Store(vv)
+	v.change(vv)
+}
+
+func (v *value[T]) Subscribe(s Source[T]) {
+	s.OnChange(func(vv T) {
+		v.Store(vv)
 	})
 }

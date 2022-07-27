@@ -1,6 +1,8 @@
 # chanchain
 
-chanchain for Golang1.18+
+chanchain for Golang1.18+.
+
+[See here for earlier version of Golang](https://github.com/Nomango/chanchain/tree/legacy).
 
 ## Usage
 

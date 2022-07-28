@@ -42,6 +42,36 @@ func TestReact(t *testing.T) {
 	AssertEqual(t, "4", vStr.Load())
 }
 
+func TestCancel(t *testing.T) {
+	s := react.NewSource[int]()
+
+	vInt1 := react.NewValue[int]()
+	cancel1 := vInt1.Subscribe(s)
+
+	vInt2 := react.NewValue[int]()
+	cancel2 := vInt2.Subscribe(s)
+
+	s.Change(1)
+	time.Sleep(time.Millisecond * 10)
+
+	AssertEqual(t, 1, vInt1.Load())
+	AssertEqual(t, 1, vInt2.Load())
+
+	cancel1()
+	s.Change(2)
+	time.Sleep(time.Millisecond * 10)
+
+	AssertEqual(t, 1, vInt1.Load())
+	AssertEqual(t, 2, vInt2.Load())
+
+	cancel2()
+	s.Change(3)
+	time.Sleep(time.Millisecond * 10)
+
+	AssertEqual(t, 1, vInt1.Load())
+	AssertEqual(t, 2, vInt2.Load())
+}
+
 func AssertEqual[T any](t *testing.T, expect, actual T) {
 	if !reflect.DeepEqual(expect, actual) {
 		t.Fatalf("values are not equal\nexpected=%v\ngot=%v", expect, actual)

@@ -1,8 +1,6 @@
 package react
 
 import (
-	"context"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,12 +8,17 @@ import (
 
 // Source ...
 type Source[T any] interface {
-	// OnChange registers a handler that handles value changes
-	OnChange(f func(T))
-
 	// Change updates the Source
 	Change(v T)
+
+	// OnChange registers a handler that handles value changes
+	OnChange(f func(T)) CancelFunc
 }
+
+// A CancelFunc tells an operation to abandon its work.
+// A CancelFunc may be called by multiple goroutines simultaneously.
+// After the first call, subsequent calls to a CancelFunc do nothing.
+type CancelFunc func()
 
 // NewSource ...
 func NewSource[T any]() Source[T] {
@@ -42,10 +45,10 @@ type Value[T any] interface {
 	Store(v T)
 
 	// OnChange registers a handler that handles value changes
-	OnChange(f func(T))
+	OnChange(f func(T)) CancelFunc
 
 	// Subscribe receives values from Source and store it into Value
-	Subscribe(s Source[T])
+	Subscribe(s Source[T]) CancelFunc
 }
 
 // NewValue ...
@@ -61,8 +64,8 @@ func NewValueFrom[T any](vv T) Value[T] {
 }
 
 // SubscribeWithTransform receives values from Source and store it into Value with a Transform
-func SubscribeWithTransform[T, U any](s Source[T], v Value[U], t Transform[T, U]) {
-	s.OnChange(func(vv T) {
+func SubscribeWithTransform[T, U any](s Source[T], v Value[U], t Transform[T, U]) CancelFunc {
+	return s.OnChange(func(vv T) {
 		v.Store(t(vv))
 	})
 }
@@ -71,8 +74,8 @@ func SubscribeWithTransform[T, U any](s Source[T], v Value[U], t Transform[T, U]
 type Transform[T, U any] func(T) U
 
 // Bind binds two value with a transform
-func Bind[T, U any](from Value[T], to Value[U], t Transform[T, U]) {
-	from.OnChange(func(vv T) {
+func Bind[T, U any](from Value[T], to Value[U], t Transform[T, U]) CancelFunc {
+	return from.OnChange(func(vv T) {
 		to.Store(t(vv))
 	})
 }
@@ -84,15 +87,11 @@ func Convert[T, U any](v Value[T], t Transform[T, U]) Value[U] {
 	return &newv
 }
 
+type subscription[T any] func(T)
+
 type source[T any] struct {
 	mu   sync.Mutex
-	subs []func(T)
-}
-
-func (s *source[T]) OnChange(f func(T)) {
-	s.mu.Lock()
-	s.subs = append(s.subs, f)
-	s.mu.Unlock()
+	subs map[*subscription[T]]struct{}
 }
 
 func (s *source[T]) Change(vv T) {
@@ -100,9 +99,24 @@ func (s *source[T]) Change(vv T) {
 	subs := s.subs
 	s.mu.Unlock()
 	if len(subs) > 0 {
-		for _, f := range subs {
-			go f(vv)
+		for sub := range subs {
+			go (*sub)(vv)
 		}
+	}
+}
+
+func (s *source[T]) OnChange(f func(T)) CancelFunc {
+	s.mu.Lock()
+	sub := (*subscription[T])(&f)
+	if s.subs == nil {
+		s.subs = make(map[*subscription[T]]struct{})
+	}
+	s.subs[sub] = struct{}{}
+	s.mu.Unlock()
+	return func() {
+		s.mu.Lock()
+		delete(s.subs, sub)
+		s.mu.Unlock()
 	}
 }
 
@@ -112,28 +126,20 @@ type channelSource[T any] struct {
 	ch   <-chan T
 }
 
-func (s *channelSource[T]) OnChange(f func(T)) {
+func (s *channelSource[T]) OnChange(f func(T)) CancelFunc {
 	s.start()
-	s.source.OnChange(f)
+	return s.source.OnChange(f)
 }
 
 func (s *channelSource[T]) start() {
 	s.once.Do(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		runtime.SetFinalizer(s, func(s *channelSource[T]) {
-			cancel()
-		})
 		go func() {
 			for {
-				select {
-				case vv, ok := <-s.ch:
-					if !ok {
-						return
-					}
-					s.Change(vv)
-				case <-ctx.Done():
+				vv, ok := <-s.ch
+				if !ok {
 					return
 				}
+				s.Change(vv)
 			}
 		}()
 	})
@@ -154,8 +160,6 @@ func (v *value[T]) Store(vv T) {
 	v.Change(vv)
 }
 
-func (v *value[T]) Subscribe(s Source[T]) {
-	s.OnChange(func(vv T) {
-		v.Store(vv)
-	})
+func (v *value[T]) Subscribe(s Source[T]) CancelFunc {
+	return s.OnChange(v.Store)
 }

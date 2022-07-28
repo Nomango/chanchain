@@ -21,7 +21,10 @@ vInt.Subscribe(s)
 // A source can be subscribed more than one time
 // So the following code is valid
 vInt2 := react.NewValueFrom(0)
-vInt2.Subscribe(s)
+cancel := vInt2.Subscribe(s)
+
+// A subscription can be canceled
+cancel()
 
 // Set action on change
 vInt.OnChange(func(i int) {

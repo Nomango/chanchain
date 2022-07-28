@@ -28,7 +28,7 @@ func NewSource() Source {
 
 // NewChanSource ...
 func NewChanSource(ch interface{}) Source {
-	return &channelSource{ch: wrapChannel(ch)}
+	return &channelSource{ch: ch}
 }
 
 // NewTickSource creates a Source that will send the current time after each tick
@@ -116,7 +116,7 @@ func (s *source) OnChange(f func(interface{})) CancelFunc {
 type channelSource struct {
 	source
 	once sync.Once
-	ch   <-chan interface{}
+	ch   interface{}
 }
 
 func (s *channelSource) OnChange(f func(interface{})) CancelFunc {
@@ -126,13 +126,18 @@ func (s *channelSource) OnChange(f func(interface{})) CancelFunc {
 
 func (s *channelSource) start() {
 	s.once.Do(func() {
+		t := reflect.TypeOf(s.ch)
+		if t.Kind() != reflect.Chan || t.ChanDir()&reflect.RecvDir == 0 {
+			panic("go-react: input to ChanSource must be readable channel")
+		}
+		v := reflect.ValueOf(s.ch)
 		go func() {
 			for {
-				vv, ok := <-s.ch
+				vv, ok := v.Recv()
 				if !ok {
 					return
 				}
-				s.Change(vv)
+				s.Change(vv.Interface())
 			}
 		}()
 	})
@@ -166,25 +171,4 @@ func (v *value) SubscribeWithTransform(s Source, t Transform) CancelFunc {
 	return s.OnChange(func(vv interface{}) {
 		v.Store(t(vv))
 	})
-}
-
-func wrapChannel(ch interface{}) <-chan interface{} {
-	t := reflect.TypeOf(ch)
-	if t.Kind() != reflect.Chan || t.ChanDir()&reflect.RecvDir == 0 {
-		panic("channels: input to Wrap must be readable channel")
-	}
-	realChan := make(chan interface{})
-
-	go func() {
-		v := reflect.ValueOf(ch)
-		for {
-			x, ok := v.Recv()
-			if !ok {
-				close(realChan)
-				return
-			}
-			realChan <- x.Interface()
-		}
-	}()
-	return realChan
 }

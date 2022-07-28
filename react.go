@@ -1,9 +1,7 @@
 package react
 
 import (
-	"context"
 	"reflect"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,12 +9,17 @@ import (
 
 // Source ...
 type Source interface {
-	// OnChange registers a handler that handles value changes
-	OnChange(f func(interface{}))
-
 	// Change updates the Source
 	Change(v interface{})
+
+	// OnChange registers a handler that handles value changes
+	OnChange(f func(interface{})) CancelFunc
 }
+
+// A CancelFunc tells an operation to abandon its work.
+// A CancelFunc may be called by multiple goroutines simultaneously.
+// After the first call, subsequent calls to a CancelFunc do nothing.
+type CancelFunc func()
 
 // NewSource ...
 func NewSource() Source {
@@ -43,16 +46,16 @@ type Value interface {
 	Store(v interface{})
 
 	// OnChange registers a handler that handles value changes
-	OnChange(f func(interface{}))
+	OnChange(f func(interface{})) CancelFunc
 
 	// Bind binds two value with a transform
-	Bind(from Value, t Transform)
+	Bind(from Value, t Transform) CancelFunc
 
 	// Subscribe receives values from Source and store it into Value
-	Subscribe(s Source)
+	Subscribe(s Source) CancelFunc
 
 	// SubscribeWithTransform receives values from Source and store it into Value with a Transform
-	SubscribeWithTransform(s Source, t Transform)
+	SubscribeWithTransform(s Source, t Transform) CancelFunc
 }
 
 // NewValue ...
@@ -77,15 +80,11 @@ func Convert(v Value, t Transform) Value {
 	return &newv
 }
 
+type subscription func(interface{})
+
 type source struct {
 	mu   sync.Mutex
-	subs []func(interface{})
-}
-
-func (s *source) OnChange(f func(interface{})) {
-	s.mu.Lock()
-	s.subs = append(s.subs, f)
-	s.mu.Unlock()
+	subs map[*subscription]struct{}
 }
 
 func (s *source) Change(vv interface{}) {
@@ -93,9 +92,24 @@ func (s *source) Change(vv interface{}) {
 	subs := s.subs
 	s.mu.Unlock()
 	if len(subs) > 0 {
-		for _, f := range subs {
-			go f(vv)
+		for sub := range subs {
+			go (*sub)(vv)
 		}
+	}
+}
+
+func (s *source) OnChange(f func(interface{})) CancelFunc {
+	s.mu.Lock()
+	sub := (*subscription)(&f)
+	if s.subs == nil {
+		s.subs = make(map[*subscription]struct{})
+	}
+	s.subs[sub] = struct{}{}
+	s.mu.Unlock()
+	return func() {
+		s.mu.Lock()
+		delete(s.subs, sub)
+		s.mu.Unlock()
 	}
 }
 
@@ -105,28 +119,20 @@ type channelSource struct {
 	ch   <-chan interface{}
 }
 
-func (s *channelSource) OnChange(f func(interface{})) {
+func (s *channelSource) OnChange(f func(interface{})) CancelFunc {
 	s.start()
-	s.source.OnChange(f)
+	return s.source.OnChange(f)
 }
 
 func (s *channelSource) start() {
 	s.once.Do(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		runtime.SetFinalizer(s, func(s *channelSource) {
-			cancel()
-		})
 		go func() {
 			for {
-				select {
-				case vv, ok := <-s.ch:
-					if !ok {
-						return
-					}
-					s.Change(vv)
-				case <-ctx.Done():
+				vv, ok := <-s.ch
+				if !ok {
 					return
 				}
+				s.Change(vv)
 			}
 		}()
 	})
@@ -146,20 +152,18 @@ func (v *value) Store(vv interface{}) {
 	v.Change(vv)
 }
 
-func (v *value) Bind(from Value, t Transform) {
-	from.OnChange(func(vv interface{}) {
+func (v *value) Bind(from Value, t Transform) CancelFunc {
+	return from.OnChange(func(vv interface{}) {
 		v.Store(t(vv))
 	})
 }
 
-func (v *value) Subscribe(s Source) {
-	s.OnChange(func(vv interface{}) {
-		v.Store(vv)
-	})
+func (v *value) Subscribe(s Source) CancelFunc {
+	return s.OnChange(v.Store)
 }
 
-func (v *value) SubscribeWithTransform(s Source, t Transform) {
-	s.OnChange(func(vv interface{}) {
+func (v *value) SubscribeWithTransform(s Source, t Transform) CancelFunc {
+	return s.OnChange(func(vv interface{}) {
 		v.Store(t(vv))
 	})
 }

@@ -6,19 +6,40 @@ import (
 	"time"
 )
 
-// Source ...
-type Source[T any] interface {
-	// Change updates the Source
-	Change(v T)
-
-	// OnChange registers a handler that handles value changes
+// Binding ...
+type Binding[T any] interface {
+	// OnChange registers a handler f that handles value changes
 	OnChange(f func(T)) CancelFunc
+
+	// Binding is a helper function to return this
+	Binding() Binding[T]
 }
 
 // A CancelFunc tells an operation to abandon its work.
 // A CancelFunc may be called by multiple goroutines simultaneously.
 // After the first call, subsequent calls to a CancelFunc do nothing.
 type CancelFunc func()
+
+// Transform converts T to U
+type Transform[T, U any] func(T) U
+
+// NewBinding ...
+func NewBinding[T, U any](from Binding[T], t Transform[T, U]) Binding[U] {
+	return &binding[T, U]{from: from, transform: t}
+}
+
+// NewAsyncBinding creates a binding that runs in a separate goroutine
+func NewAsyncBinding[T, U any](from Binding[T], t Transform[T, U]) Binding[U] {
+	return &asyncBinding[T, U]{from: from, transform: t}
+}
+
+// Source ...
+type Source[T any] interface {
+	Binding[T]
+
+	// Change updates the Source
+	Change(v T)
+}
 
 // NewSource ...
 func NewSource[T any]() Source[T] {
@@ -38,17 +59,16 @@ func NewTickSource(interval time.Duration) Source[time.Time] {
 
 // Value ...
 type Value[T any] interface {
+	Binding[T]
+
 	// Load ...
 	Load() T
 
 	// Store ...
 	Store(v T)
 
-	// OnChange registers a handler that handles value changes
-	OnChange(f func(T)) CancelFunc
-
-	// Subscribe receives values from Source and store it into Value
-	Subscribe(s Source[T]) CancelFunc
+	// Bind creates a binding to this value
+	Bind(b Binding[T]) CancelFunc
 }
 
 // NewValue ...
@@ -58,64 +78,77 @@ func NewValue[T any]() Value[T] {
 
 // NewValueFrom ...
 func NewValueFrom[T any](vv T) Value[T] {
-	var v value[T]
-	v.v.Store(vv)
-	return &v
+	v := NewValue[T]()
+	v.Store(vv)
+	return v
 }
 
-// SubscribeWithTransform receives values from Source and store it into Value with a Transform
-func SubscribeWithTransform[T, U any](s Source[T], v Value[U], t Transform[T, U]) CancelFunc {
-	return s.OnChange(func(vv T) {
-		v.Store(t(vv))
+// NewBindingValue ...
+func NewBindingValue[T any](b Binding[T]) (Value[T], CancelFunc) {
+	newv := NewValue[T]()
+	return newv, newv.Bind(b)
+}
+
+type binding[T, U any] struct {
+	from      Binding[T]
+	transform Transform[T, U]
+}
+
+func (b *binding[T, U]) OnChange(to func(U)) CancelFunc {
+	return b.from.OnChange(func(vv T) {
+		to(b.transform(vv))
 	})
 }
 
-// Transform converts T to U
-type Transform[T, U any] func(T) U
+func (b *binding[T, U]) Binding() Binding[U] {
+	return b
+}
 
-// Bind binds two value with a transform
-func Bind[T, U any](from Value[T], to Value[U], t Transform[T, U]) CancelFunc {
-	return from.OnChange(func(vv T) {
-		to.Store(t(vv))
+type asyncBinding[T, U any] binding[T, U]
+
+func (ab *asyncBinding[T, U]) OnChange(to func(U)) CancelFunc {
+	return ab.from.OnChange(func(vv T) {
+		go func() {
+			to(ab.transform(vv))
+		}()
 	})
 }
 
-// Convert converts Value type
-func Convert[T, U any](v Value[T], t Transform[T, U]) Value[U] {
-	var newv value[U]
-	Bind[T, U](v, &newv, t)
-	return &newv
+func (ab *asyncBinding[T, U]) Binding() Binding[U] {
+	return ab
 }
-
-type subscription[T any] func(T)
 
 type source[T any] struct {
-	mu   sync.Mutex
-	subs map[*subscription[T]]struct{}
+	mu       sync.Mutex
+	bindings map[*func(T)]struct{}
+}
+
+func (s *source[T]) Binding() Binding[T] {
+	return s
 }
 
 func (s *source[T]) Change(vv T) {
 	s.mu.Lock()
-	subs := s.subs
+	bindings := s.bindings
 	s.mu.Unlock()
-	if len(subs) > 0 {
-		for sub := range subs {
-			go (*sub)(vv)
+	if len(bindings) > 0 {
+		for binding := range bindings {
+			(*binding)(vv)
 		}
 	}
 }
 
 func (s *source[T]) OnChange(f func(T)) CancelFunc {
 	s.mu.Lock()
-	sub := (*subscription[T])(&f)
-	if s.subs == nil {
-		s.subs = make(map[*subscription[T]]struct{})
+	fptr := &f
+	if s.bindings == nil {
+		s.bindings = make(map[*func(T)]struct{})
 	}
-	s.subs[sub] = struct{}{}
+	s.bindings[fptr] = struct{}{}
 	s.mu.Unlock()
 	return func() {
 		s.mu.Lock()
-		delete(s.subs, sub)
+		delete(s.bindings, fptr)
 		s.mu.Unlock()
 	}
 }
@@ -124,6 +157,10 @@ type channelSource[T any] struct {
 	source[T]
 	once sync.Once
 	ch   <-chan T
+}
+
+func (s *channelSource[T]) Binding() Binding[T] {
+	return s
 }
 
 func (s *channelSource[T]) OnChange(f func(T)) CancelFunc {
@@ -151,8 +188,8 @@ type value[T any] struct {
 }
 
 func (v *value[T]) Load() T {
-	r, _ := v.v.Load().(T)
-	return r
+	vv, _ := v.v.Load().(T)
+	return vv
 }
 
 func (v *value[T]) Store(vv T) {
@@ -160,6 +197,10 @@ func (v *value[T]) Store(vv T) {
 	v.Change(vv)
 }
 
-func (v *value[T]) Subscribe(s Source[T]) CancelFunc {
-	return s.OnChange(v.Store)
+func (v *value[T]) Bind(b Binding[T]) CancelFunc {
+	return b.OnChange(v.Store)
+}
+
+func (v *value[T]) Binding() Binding[T] {
+	return v
 }

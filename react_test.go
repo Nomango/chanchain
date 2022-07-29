@@ -3,6 +3,7 @@ package react_test
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -14,24 +15,23 @@ func TestReact(t *testing.T) {
 	s := react.NewChanSource(ch)
 
 	vInt := react.NewValue[int]()
-	vInt.Subscribe(s)
+	vInt.Bind(s)
 	vInt.OnChange(func(i int) {
 		fmt.Println(i)
 	})
 
 	vInt2 := react.NewValueFrom(0)
-	react.SubscribeWithTransform(s, vInt2, func(v int) int {
+	vInt2.Bind(react.NewBinding(s.Binding(), func(v int) int {
 		return v + 1
-	})
+	}))
 
-	vInt32 := react.NewValue[int32]()
-	react.Bind(vInt, vInt32, func(v int) int32 {
+	vInt32, _ := react.NewBindingValue(react.NewBinding(vInt.Binding(), func(v int) int32 {
 		return int32(v + 2)
-	})
+	}))
 
-	vStr := react.Convert(vInt, func(v int) string {
+	vStr, _ := react.NewBindingValue(react.NewAsyncBinding(vInt.Binding(), func(v int) string {
 		return fmt.Sprint(v + 3)
-	})
+	}))
 
 	ch <- 1
 	time.Sleep(time.Millisecond * 10)
@@ -45,11 +45,9 @@ func TestReact(t *testing.T) {
 func TestCancel(t *testing.T) {
 	s := react.NewSource[int]()
 
-	vInt1 := react.NewValue[int]()
-	cancel1 := vInt1.Subscribe(s)
+	vInt1, cancel1 := react.NewBindingValue(s.Binding())
 
-	vInt2 := react.NewValue[int]()
-	cancel2 := vInt2.Subscribe(s)
+	vInt2, cancel2 := react.NewBindingValue(s.Binding())
 
 	s.Change(1)
 	time.Sleep(time.Millisecond * 10)
@@ -72,8 +70,29 @@ func TestCancel(t *testing.T) {
 	AssertEqual(t, 2, vInt2.Load())
 }
 
+func TestBlock(t *testing.T) {
+	v1 := react.NewValueFrom(0)
+	v2, _ := react.NewBindingValue(v1.Binding())
+	v3, _ := react.NewBindingValue(react.NewAsyncBinding(v1.Binding(), func(i int) int {
+		time.Sleep(time.Millisecond * 50)
+		return i
+	}))
+
+	v1.Store(1)
+	time.Sleep(time.Millisecond * 10)
+
+	AssertEqual(t, 1, v2.Load())
+	AssertEqual(t, 0, v3.Load())
+
+	time.Sleep(time.Millisecond * 50)
+
+	AssertEqual(t, 1, v2.Load())
+	AssertEqual(t, 1, v3.Load())
+}
+
 func AssertEqual[T any](t *testing.T, expect, actual T) {
 	if !reflect.DeepEqual(expect, actual) {
-		t.Fatalf("values are not equal\nexpected=%v\ngot=%v", expect, actual)
+		_, file, line, _ := runtime.Caller(1)
+		t.Fatalf("\n%v:%v:\n\tvalues are not equal\n\texpected=%v\n\tgot=%v", file, line, expect, actual)
 	}
 }

@@ -14,33 +14,36 @@ ch := make(chan int)
 // Create a source
 s := react.NewChanSource(ch)
 
-// Create a value and subscribe the source
+// Create a value and bind with the source
 vInt := react.NewValue[int]()
-vInt.Subscribe(s)
+cancel := vInt.Bind(s)
 
-// A source can be subscribed more than one time
-// So the following code is valid
-vInt2 := react.NewValueFrom(0)
-cancel := vInt2.Subscribe(s)
-
-// A subscription can be canceled
-cancel()
+// A binding can be canceled
+defer cancel()
 
 // Set action on change
 vInt.OnChange(func(i int) {
     fmt.Println(i)
 })
 
+// A source can be bound more than one time
+// So the following code is valid
+vInt2 := react.NewValueFrom(0)
+vInt2.Bind(react.NewBinding(s.Binding(), func(v int) int {
+    return v + 1 // Processing raw value
+}))
+
 // Bind another value
 vInt32 := react.NewValue[int32]()
-react.Bind(vInt, vInt32, func(v int) int32 {
+vInt32.Bind(react.NewBinding(vInt.Binding(), func(v int) int32 {
     return int32(v + 1)
-})
+}))
 
 // Convert a int value to a string value
-vStr := react.Convert(vInt, func(v int) string {
-    return fmt.Sprint(v+2)
+asyncBinding := react.NewAsyncBinding(vInt.Binding(), func(v int) string {
+    return fmt.Sprint(v + 3) // Processing in a separate goroutine
 })
+vStr, _ := react.NewBindingValue(asyncBinding)
 
 // Send a value to Source
 ch <- 1
@@ -48,6 +51,7 @@ ch <- 1
 // Wait for the update to complete
 time.Sleep(time.Millisecond * 10)
 
+fmt.Println(vInt2.Load())
 fmt.Println(vInt32.Load())
 fmt.Println(vStr.Load())
 
@@ -55,4 +59,5 @@ fmt.Println(vStr.Load())
 // 1
 // 2
 // 3
+// 4
 ```

@@ -14,16 +14,16 @@ ch := make(chan int)
 // Create a source
 s := react.NewChanSource(ch)
 
-// Create a value and subscribe the source
+// Create a value and bind the source
 vInt := react.NewValue()
-vInt.Subscribe(s)
+vInt.Bind(s)
 
-// A source can be subscribed more than one time
+// A source can be bound more than one time
 // So the following code is valid
 vInt2 := react.NewValueFrom(0)
-cancel := vInt2.Subscribe(s)
+cancel := vInt2.Bind(s)
 
-// A subscription can be canceled
+// A binding can be canceled
 cancel()
 
 // Set action on change
@@ -31,18 +31,18 @@ vInt.OnChange(func(i interface{}) {
     fmt.Println(i)
 })
 
-// Bind another value
+// Bind another value with a transform
 vInt32 := react.NewValue()
-vInt32.Bind(vInt, func(v interface{}) interface{} {
-    return int32(v.(int) + 1)
-})
+vInt32.Bind(vInt, react.WithTransform(func(i interface{}) interface{} {
+    return int32(i.(int) + 1)
+}))
 
 // Convert a int value to a string value
-vStr := react.Convert(vInt, func(v interface{}) interface{} {
-    return fmt.Sprint(v.(int) + 2)
-})
+vStr := react.NewBindingValue(vInt, react.WithTransform(func(i interface{}) interface{} {
+    return fmt.Sprint(i.(int) + 2)
+}))
 
-// Send a value to Source
+// Send a value to source
 ch <- 1
 
 // Wait for the update to complete

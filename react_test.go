@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Nomango/react"
+	"github.com/Nomango/go-react"
 )
 
 func TestReact(t *testing.T) {

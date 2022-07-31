@@ -8,7 +8,8 @@ import (
 
 // Binding ...
 type Binding[T any] interface {
-	// OnChange registers a handler f that handles value changes
+	// OnChange registers a handler f that handles value changes.
+	// Note that f should not perform time-consuming operations.
 	OnChange(f func(T)) CancelFunc
 
 	// Binding is a helper function to return this
@@ -133,7 +134,7 @@ func (s *source[T]) Change(vv T) {
 	s.mu.Unlock()
 	if len(bindings) > 0 {
 		for binding := range bindings {
-			(*binding)(vv)
+			(*binding)(vv) // not async
 		}
 	}
 }
@@ -198,7 +199,7 @@ func (v *value[T]) Store(vv T) {
 }
 
 func (v *value[T]) Bind(b Binding[T]) CancelFunc {
-	return b.OnChange(v.Store)
+	return b.Binding().OnChange(v.Store)
 }
 
 func (v *value[T]) Binding() Binding[T] {

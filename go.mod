@@ -1,3 +1,3 @@
-module github.com/Nomango/react
+module github.com/Nomango/go-react
 
 go 1.18

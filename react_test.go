@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -71,26 +72,78 @@ func TestCancel(t *testing.T) {
 func TestBlock(t *testing.T) {
 	v1 := react.NewValueFrom(0)
 	v2, _ := react.NewBindingValue(v1)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	v3, _ := react.NewBindingValue(react.NewAsyncBinding(v1, func(i interface{}) interface{} {
-		time.Sleep(time.Millisecond * 50)
+		defer wg.Done()
+		time.Sleep(time.Millisecond * 100)
 		return i
 	}))
 
 	v1.Store(1)
-	time.Sleep(time.Millisecond * 10)
 
 	AssertEqual(t, 1, v2.Load())
 	AssertEqual(t, nil, v3.Load())
 
-	time.Sleep(time.Millisecond * 50)
+	wg.Wait()
+	time.Sleep(time.Millisecond * 100)
 
 	AssertEqual(t, 1, v2.Load())
 	AssertEqual(t, 1, v3.Load())
 }
 
+func TestTickSource(t *testing.T) {
+	interval := time.Millisecond * 200
+	s := react.NewTickSource(interval)
+	v, _ := react.NewBindingValue(s)
+
+	time.Sleep(interval * 2)
+
+	AssertNotEqual(t, nil, v.Load())
+}
+
+func TestCloseChanSource(t *testing.T) {
+	ch := make(chan int)
+	s := react.NewChanSource(ch)
+	s.OnChange(func(i interface{}) {})
+
+	close(ch)
+	time.Sleep(time.Millisecond * 50)
+}
+
+func TestError(t *testing.T) {
+	AssertPanic(t, func() {
+		s := react.NewChanSource(1)
+		s.OnChange(func(i interface{}) {})
+	})
+	AssertPanic(t, func() {
+		ch := make(chan int)
+		s := react.NewChanSource((chan<- int)(ch))
+		s.OnChange(func(i interface{}) {})
+	})
+}
+
 func AssertEqual(t *testing.T, expect, actual interface{}) {
 	if !reflect.DeepEqual(expect, actual) {
 		_, file, line, _ := runtime.Caller(1)
-		t.Fatalf("\n%v:%v:\n\tvalues are not equal\n\texpected=%v\n\tgot=%v", file, line, expect, actual)
+		t.Fatalf("\n%v:%v:\n\tValues are not equal\n\texpected=%#v\n\tgot=%#v", file, line, expect, actual)
 	}
+}
+
+func AssertNotEqual(t *testing.T, expect, actual interface{}) {
+	if reflect.DeepEqual(expect, actual) {
+		_, file, line, _ := runtime.Caller(1)
+		t.Fatalf("\n%v:%v:\n\tShould not be: %#v", file, line, actual)
+	}
+}
+
+func AssertPanic(t *testing.T, f func()) {
+	defer func() {
+		if e := recover(); e == nil {
+			_, file, line, _ := runtime.Caller(2)
+			t.Fatalf("\n%v:%v:\n\tShould panic", file, line)
+		}
+	}()
+	f()
 }

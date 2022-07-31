@@ -10,7 +10,7 @@ Not React.js for Golang!
 
 `go-react` is a library for data binding.
 
-[See here for earlier version of Golang](https://github.com/Nomango/go-react/tree/1.x).
+[See here for earlier version of Golang](https://github.com/Nomango/go-react/tree/v1).
 
 ## Install
 

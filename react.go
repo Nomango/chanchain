@@ -7,23 +7,10 @@ import (
 	"time"
 )
 
-// Changeable ...
-type Changeable interface {
-	// OnChange registers a handler that handles value changes. Note that b should not
-	// preform time-consuming operations
-	OnChange(b Binding) CancelFunc
-}
-
 // Binding ...
-type Binding func(interface{})
-
-// NewBinding ...
-func NewBinding(f func(interface{}), opts ...BindOption) Binding {
-	var bm bindingMaker
-	for _, opt := range opts {
-		opt(&bm)
-	}
-	return bm.make(f)
+type Binding interface {
+	// OnChange registers a handler f that handles value changes
+	OnChange(f func(interface{})) CancelFunc
 }
 
 // A CancelFunc tells an operation to abandon its work.
@@ -31,9 +18,22 @@ func NewBinding(f func(interface{}), opts ...BindOption) Binding {
 // After the first call, subsequent calls to a CancelFunc do nothing.
 type CancelFunc func()
 
+// Transform converts interface{} to interface{}
+type Transform func(interface{}) interface{}
+
+// NewBinding ...
+func NewBinding(from Binding, t Transform) Binding {
+	return &binding{from: from, transform: t}
+}
+
+// NewAsyncBinding creates a binding that runs in a separate goroutine
+func NewAsyncBinding(from Binding, t Transform) Binding {
+	return &asyncBinding{from: from, transform: t}
+}
+
 // Source ...
 type Source interface {
-	Changeable
+	Binding
 
 	// Change updates the Source
 	Change(v interface{})
@@ -57,7 +57,7 @@ func NewTickSource(interval time.Duration) Source {
 
 // Value ...
 type Value interface {
-	Changeable
+	Binding
 
 	// Load ...
 	Load() interface{}
@@ -65,8 +65,8 @@ type Value interface {
 	// Store ...
 	Store(v interface{})
 
-	// Bind creates a binding between c and this value
-	Bind(c Changeable, opts ...BindOption) CancelFunc
+	// Bind creates a binding to this value
+	Bind(b Binding) CancelFunc
 }
 
 // NewValue ...
@@ -77,42 +77,40 @@ func NewValue() Value {
 // NewValueFrom ...
 func NewValueFrom(vv interface{}) Value {
 	v := NewValue()
-	if vv != nil {
-		v.Store(vv)
-	}
+	v.Store(vv)
 	return v
 }
 
 // NewBindingValue ...
-func NewBindingValue(from Value, opts ...BindOption) Value {
+func NewBindingValue(b Binding) (Value, CancelFunc) {
 	newv := NewValue()
-	newv.Bind(from, opts...)
-	return newv
+	return newv, newv.Bind(b)
 }
 
-// BindOption ...
-type BindOption func(*bindingMaker)
-
-// Transform converts interface{} to interface{}
-type Transform func(interface{}) interface{}
-
-// WithTransform returns an option that indicates the binding should take a Transform
-func WithTransform(t Transform) BindOption {
-	return func(o *bindingMaker) {
-		o.transform = t
-	}
+type binding struct {
+	from      Binding
+	transform Transform
 }
 
-// WithAsync returns an option that indicates the binding should run in a separate goroutine
-func WithAsync(async bool) BindOption {
-	return func(o *bindingMaker) {
-		o.async = async
-	}
+func (b *binding) OnChange(to func(interface{})) CancelFunc {
+	return b.from.OnChange(func(vv interface{}) {
+		to(b.transform(vv))
+	})
+}
+
+type asyncBinding binding
+
+func (ab *asyncBinding) OnChange(to func(interface{})) CancelFunc {
+	return ab.from.OnChange(func(vv interface{}) {
+		go func() {
+			to(ab.transform(vv))
+		}()
+	})
 }
 
 type source struct {
 	mu       sync.Mutex
-	bindings map[*Binding]struct{}
+	bindings map[*func(interface{})]struct{}
 }
 
 func (s *source) Change(vv interface{}) {
@@ -121,22 +119,22 @@ func (s *source) Change(vv interface{}) {
 	s.mu.Unlock()
 	if len(bindings) > 0 {
 		for binding := range bindings {
-			(*binding)(vv) // not async
+			(*binding)(vv)
 		}
 	}
 }
 
-func (s *source) OnChange(b Binding) CancelFunc {
+func (s *source) OnChange(f func(interface{})) CancelFunc {
 	s.mu.Lock()
-	bptr := &b
+	fptr := &f
 	if s.bindings == nil {
-		s.bindings = make(map[*Binding]struct{})
+		s.bindings = make(map[*func(interface{})]struct{})
 	}
-	s.bindings[bptr] = struct{}{}
+	s.bindings[fptr] = struct{}{}
 	s.mu.Unlock()
 	return func() {
 		s.mu.Lock()
-		delete(s.bindings, bptr)
+		delete(s.bindings, fptr)
 		s.mu.Unlock()
 	}
 }
@@ -147,9 +145,9 @@ type channelSource struct {
 	ch   interface{}
 }
 
-func (s *channelSource) OnChange(b Binding) CancelFunc {
+func (s *channelSource) OnChange(f func(interface{})) CancelFunc {
 	s.start()
-	return s.source.OnChange(b)
+	return s.source.OnChange(f)
 }
 
 func (s *channelSource) start() {
@@ -185,27 +183,6 @@ func (v *value) Store(vv interface{}) {
 	v.Change(vv)
 }
 
-func (v *value) Bind(c Changeable, opts ...BindOption) CancelFunc {
-	return c.OnChange(NewBinding(v.Store, opts...))
-}
-
-type bindingMaker struct {
-	transform Transform
-	async     bool
-}
-
-func (bm *bindingMaker) make(f func(vv interface{})) Binding {
-	if bm.transform != nil {
-		prev := f
-		f = func(vv interface{}) {
-			prev(bm.transform(vv))
-		}
-	}
-	if bm.async {
-		prev := f
-		f = func(vv interface{}) {
-			go prev(vv)
-		}
-	}
-	return f
+func (v *value) Bind(b Binding) CancelFunc {
+	return b.OnChange(v.Store)
 }

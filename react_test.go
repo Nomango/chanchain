@@ -21,16 +21,15 @@ func TestReact(t *testing.T) {
 	})
 
 	vInt2 := react.NewValueFrom(0)
-	vInt2.Bind(s, react.WithTransform(func(v interface{}) interface{} {
+	vInt2.Bind(react.NewBinding(s, func(v interface{}) interface{} {
 		return v.(int) + 1
 	}))
 
-	vInt32 := react.NewValue()
-	vInt32.Bind(vInt, react.WithTransform(func(v interface{}) interface{} {
+	vInt32, _ := react.NewBindingValue(react.NewBinding(vInt, func(v interface{}) interface{} {
 		return int32(v.(int) + 2)
 	}))
 
-	vStr := react.NewBindingValue(vInt, react.WithTransform(func(v interface{}) interface{} {
+	vStr, _ := react.NewBindingValue(react.NewAsyncBinding(vInt, func(v interface{}) interface{} {
 		return fmt.Sprint(v.(int) + 3)
 	}))
 
@@ -45,12 +44,8 @@ func TestReact(t *testing.T) {
 
 func TestCancel(t *testing.T) {
 	s := react.NewSource()
-
-	vInt1 := react.NewValue()
-	cancel1 := vInt1.Bind(s)
-
-	vInt2 := react.NewValue()
-	cancel2 := vInt2.Bind(s)
+	vInt1, cancel1 := react.NewBindingValue(s)
+	vInt2, cancel2 := react.NewBindingValue(s)
 
 	s.Change(1)
 	time.Sleep(time.Millisecond * 10)
@@ -75,11 +70,11 @@ func TestCancel(t *testing.T) {
 
 func TestBlock(t *testing.T) {
 	v1 := react.NewValueFrom(0)
-	v2 := react.NewBindingValue(v1)
-	v3 := react.NewBindingValue(v1, react.WithTransform(func(i interface{}) interface{} {
+	v2, _ := react.NewBindingValue(v1)
+	v3, _ := react.NewBindingValue(react.NewAsyncBinding(v1, func(i interface{}) interface{} {
 		time.Sleep(time.Millisecond * 50)
 		return i
-	}), react.WithAsync(true))
+	}))
 
 	v1.Store(1)
 	time.Sleep(time.Millisecond * 10)

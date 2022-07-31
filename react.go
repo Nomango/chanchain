@@ -9,7 +9,8 @@ import (
 
 // Binding ...
 type Binding interface {
-	// OnChange registers a handler f that handles value changes
+	// OnChange registers a handler f that handles value changes.
+	// Note that f should not perform time-consuming operations.
 	OnChange(f func(interface{})) CancelFunc
 }
 
@@ -119,7 +120,7 @@ func (s *source) Change(vv interface{}) {
 	s.mu.Unlock()
 	if len(bindings) > 0 {
 		for binding := range bindings {
-			(*binding)(vv)
+			(*binding)(vv) // not async
 		}
 	}
 }

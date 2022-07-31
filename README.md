@@ -15,7 +15,7 @@ Not React.js for Golang!
 ## Install
 
 ```bash
-go get github.com/Nomango/go-react@v1
+go get github.com/Nomango/go-react
 ```
 
 ## Usage

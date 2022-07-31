@@ -1,8 +1,8 @@
 # go-react
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/Nomango/go-react.svg)](https://pkg.go.dev/github.com/Nomango/go-react)
-[![Github status](https://github.com/Nomango/go-react/actions/workflows/UnitTest.yml/badge.svg?branch=main)](https://github.com/Nomango/go-react/actions)
+[![Go Reference](https://pkg.go.dev/badge/github.com/Nomango/go-react.svg)](https://pkg.go.dev/github.com/Nomango/go-react/v2)
 [![GitHub release](https://img.shields.io/github/release/nomango/go-react)](https://github.com/Nomango/go-react/releases/latest)
+[![Github status](https://github.com/Nomango/go-react/actions/workflows/UnitTest.yml/badge.svg?branch=main)](https://github.com/Nomango/go-react/actions)
 [![codecov](https://codecov.io/gh/Nomango/go-react/branch/main/graph/badge.svg?token=YEGAFMRM28)](https://codecov.io/gh/Nomango/go-react)
 [![License](https://img.shields.io/github/license/nomango/go-react)](https://github.com/Nomango/go-react/blob/main/LICENSE)
 

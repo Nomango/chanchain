@@ -36,7 +36,7 @@ jobs:
         verbose: true
 
   test_v2:
-    if: ${{ github.ref_name == '2.x' }}
+    if: ${{ github.base_ref == '2.x' }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +53,7 @@ jobs:
       run: go test -v ./...
 
   test_v1:
-    if: ${{ github.ref_name == '1.x' }}
+    if: ${{ github.base_ref == '1.x' }}
     strategy:
       fail-fast: false
       matrix:

@@ -2,9 +2,9 @@ name: Unit Test
 
 on:
   push:
-    branches: [ "1.x", "2.x" ]
+    branches: [ "v1", "v2" ]
   pull_request:
-    branches: [ "1.x", "2.x" ]
+    branches: [ "v1", "v2" ]
 
 jobs:
   coverage:
@@ -36,7 +36,7 @@ jobs:
         verbose: true
 
   test_v2:
-    if: ${{ github.base_ref == '2.x' }}
+    if: ${{ github.base_ref == 'v2' }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +53,7 @@ jobs:
       run: go test -v ./...
 
   test_v1:
-    if: ${{ github.base_ref == '1.x' }}
+    if: ${{ github.base_ref == 'v1' }}
     strategy:
       fail-fast: false
       matrix:

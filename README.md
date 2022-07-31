@@ -1,11 +1,10 @@
 # go-react
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/Nomango/go-react.svg)](https://pkg.go.dev/github.com/Nomango/go-react)
-[![Github status](https://github.com/Nomango/go-react/actions/workflows/UnitTest.yml/badge.svg?branch=main)](https://github.com/Nomango/go-react/actions)
+[![Go Reference](https://pkg.go.dev/badge/github.com/Nomango/go-react.svg)](https://pkg.go.dev/github.com/Nomango/go-react/v1)
+[![Github status](https://github.com/Nomango/go-react/actions/workflows/UnitTest.yml/badge.svg?branch=1.x)](https://github.com/Nomango/go-react/actions)
 [![GitHub release](https://img.shields.io/github/release/nomango/go-react)](https://github.com/Nomango/go-react/releases/latest)
-[![Codacy Grade](https://app.codacy.com/project/badge/Grade/eccf7bb1fe7144458a76e3905dd4d054)](https://www.codacy.com/gh/Nomango/go-react/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Nomango/go-react&amp;utm_campaign=Badge_Grade)
-[![Codacy Coverage](https://app.codacy.com/project/badge/Coverage/9dd32aab87364903a57f32543f3bf738)](https://www.codacy.com/gh/Nomango/go-react/dashboard?utm_source=github.com&utm_medium=referral&utm_content=Nomango/go-react&utm_campaign=Badge_Coverage)
-[![License](https://img.shields.io/github/license/nomango/go-react)](https://github.com/Nomango/go-react/blob/main/LICENSE)
+[![codecov](https://codecov.io/gh/Nomango/go-react/branch/main/graph/badge.svg?token=YEGAFMRM28)](https://codecov.io/gh/Nomango/go-react)
+[![License](https://img.shields.io/github/license/nomango/go-react)](https://github.com/Nomango/go-react/blob/1.x/LICENSE)
 
 Not React.js for Golang!
 

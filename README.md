@@ -1,10 +1,22 @@
 # go-react
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/Nomango/go-react.svg)](https://pkg.go.dev/github.com/Nomango/go-react)
+[![Github status](https://github.com/Nomango/go-react/actions/workflows/UnitTest.yml/badge.svg?branch=main)](https://github.com/Nomango/go-react/actions)
+[![GitHub release](https://img.shields.io/github/release/nomango/go-react)](https://github.com/Nomango/go-react/releases/latest)
+[![codecov](https://codecov.io/gh/Nomango/go-react/branch/main/graph/badge.svg?token=YEGAFMRM28)](https://codecov.io/gh/Nomango/go-react)
+[![License](https://img.shields.io/github/license/nomango/go-react)](https://github.com/Nomango/go-react/blob/main/LICENSE)
+
 Not React.js for Golang!
 
 `go-react` is a library for data binding.
 
-[See here for earlier version of Golang](https://github.com/Nomango/go-react/tree/legacy).
+[See here for earlier version of Golang](https://github.com/Nomango/go-react/tree/1.x).
+
+## Install
+
+```bash
+go get github.com/Nomango/go-react@v2
+```
 
 ## Usage
 

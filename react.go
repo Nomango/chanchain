@@ -116,10 +116,9 @@ type source struct {
 
 func (s *source) Change(vv interface{}) {
 	s.mu.Lock()
-	bindings := s.bindings
-	s.mu.Unlock()
-	if len(bindings) > 0 {
-		for binding := range bindings {
+	defer s.mu.Unlock()
+	if len(s.bindings) > 0 {
+		for binding := range s.bindings {
 			(*binding)(vv) // not async
 		}
 	}
